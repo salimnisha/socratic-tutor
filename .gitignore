@@ -1,0 +1,29 @@
+# API Keys
+.env
+
+# Personal data
+sessions/
+
+# Vector database
+chroma_db/
+
+# Python
+__pychache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# VS Code
+.vscode/
+
+# MacOS
+.DS_Store
+
+# Jupyter notebooks
+.ipynb_checkpoints
+.ipynb
+
+
