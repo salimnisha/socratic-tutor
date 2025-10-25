@@ -59,7 +59,7 @@ def chunk_text(text, chunk_size=1000, overlap=100):
     Split text into overlapping chunks
 
     Strategy:
-    1. Split text on newline
+    1. Split text on newline (not paragraph, because paragraph boundary marker inconsistencies across pdfs)
     2. Combine lines to create chunks that reach chunk_size
     3. Add overlap between chunks for continuity between chunks
 
@@ -90,13 +90,13 @@ def chunk_text(text, chunk_size=1000, overlap=100):
         # Check if adding line to current_chunk will be within target chunk_size
         if len(current_chunk) + len(line) < chunk_size:
             # Add line to current chunk
-            current_chunk += " " + line
+            current_chunk += "\n" + line
         else:
             # Append to chunks list, then start new chunk with previous line overlap and line
             chunks.append(current_chunk)
-            current_chunk = current_chunk[-overlap:] + " " + line
+            current_chunk = current_chunk[-overlap:] + "\n" + line
 
-    # Also add the last chunk to the list
+    # Also add the final chunk to the list
     if current_chunk:
         chunks.append(current_chunk.strip())
 
