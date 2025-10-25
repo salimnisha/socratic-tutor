@@ -3,6 +3,8 @@
 
 # Personal data
 sessions/
+personal/
+data/Ch 01 Chip Huyen AI Engineering - 025-072.pdf
 
 # Vector database
 chroma_db/

@@ -20,17 +20,20 @@ An AI powered tutor that teaches using the Socratic method.
 ## Current Status
 🚧 **In development** - Session 1 complete: Project setup
 
-## Setup
+## Environment Setup and Verification
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+python check_env.py
 ```
 Create .env file with
 ```OPENAI_API_KEY=your-key-here```
 
 ## Learning journey
 This project is being built as part of learning AI Engineering, following Chip Huyen's book
+
+**Note:** A local `/personal` folder (ignored by Git) is used for developer notes and private logs.
 
 ## Author
 Nisha Salim
