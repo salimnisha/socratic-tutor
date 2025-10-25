@@ -8,7 +8,7 @@ from src.embeddings import create_embedding, create_embeddings_batch
 
 # ----------------------------------------------------------
 """ Test extract text from pdf """
-pdf_path = "data/Ch 01 Chip Huyen AI Engineering - 025-072.pdf"
+pdf_path = "data/chip_huyen_ch_1.pdf"
 print(f"Extracting text from: {pdf_path}")
 
 text = extract_text_from_pdf(pdf_path)
