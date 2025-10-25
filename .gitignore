@@ -7,6 +7,7 @@ personal/
 data/Ch 01 Chip Huyen AI Engineering - 025-072.pdf
 
 # Vector database
+vector_store/
 chroma_db/
 
 # Python
