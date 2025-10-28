@@ -84,6 +84,6 @@ class VectorStore:
         chunks = [item["text"] for item in data["chunks"]]
         embeddings = [item["embedding"] for item in data["chunks"]]
 
-        print(f"✓ Loaded {len(chunks)} from {pdf_name}")
+        print(f"✓ Loaded {len(chunks)} chunk-embeddings from {pdf_name}")
 
         return chunks, embeddings
