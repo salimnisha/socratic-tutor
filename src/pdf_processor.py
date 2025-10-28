@@ -12,6 +12,7 @@ This module handles:
 
 from PyPDF2 import PdfReader
 from pathlib import Path
+import tiktoken
 
 
 # --------------------------------------------------
@@ -56,7 +57,8 @@ def extract_text_from_pdf(pdf_path):
 # --------------------------------------------------
 def chunk_text(text, chunk_size=1000, overlap=100):
     """
-    Split text into overlapping chunks
+    Split text into overlapping chunks based on character count
+    Note: function below (chunk_text_by_tokens) makes chunks based on token count
 
     Strategy:
     1. Split text on newline (not paragraph, because paragraph boundary marker inconsistencies across pdfs)
@@ -99,5 +101,62 @@ def chunk_text(text, chunk_size=1000, overlap=100):
     # Also add the final chunk to the list
     if current_chunk:
         chunks.append(current_chunk.strip())
+
+    return chunks
+
+
+# --------------------------------------------------
+# Function: Split text into overlapping tokens
+# --------------------------------------------------
+def chunk_text_by_tokens(
+    text, chunk_size=500, overlap=50, model="text-embedding-3-small"
+):
+    """
+    Create overlapping chunks based on token count (not character count)
+    Note: Function above (create_chunks) creates chunks based on character count
+
+    Args:
+        text (str): Text to split into chunks
+        chunk_size (int): Target number of tokens per chunk
+        overlap (int): Number of tokens to overlap between consecutive chunks
+        model (str): Model name to get correct tokenizer
+
+    Returns:
+        list: list of chunks (text strings) with overlap
+    """
+
+    # Replace the page number strings with PAGEMARKER
+    text = text.replace("--- Page", "PAGEMARKER").replace("---", "")
+
+    # Split the text into lines
+    lines = text.split("\n")
+
+    # Remove empty lines and whitespaces
+    lines = [line.strip() for line in lines if line.strip()]
+
+    # Initialize tokenizer
+    encoding = tiktoken.encoding_for_model(model)
+
+    chunks = []
+    current_tokens = []
+
+    # loop through lines and chunk based on chunk_size and overlap
+    for line in lines:
+        # Encode the line into tokens first
+        line_tokens = encoding.encode(line)
+
+        # Check if current_tokens + new tokens stay within chunk size limit
+        if len(current_tokens) + len(line_tokens) < chunk_size:
+            current_tokens.extend(line_tokens)
+        else:
+            # Decode current_tokens and to the chunks list
+            chunk_text = encoding.decode(current_tokens)
+            chunks.append(chunk_text)
+            # Start a new current_token with an overlap from the previous + current encoded line
+            current_tokens = current_tokens[-overlap:] + line_tokens
+
+    # Add the final chunk
+    chunk_text = encoding.decode(current_tokens)
+    chunks.append(chunk_text)
 
     return chunks

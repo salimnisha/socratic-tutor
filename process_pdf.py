@@ -10,7 +10,7 @@ This script:
 4. Saves chunks and embeddings to disk
 """
 
-from src.pdf_processor import extract_text_from_pdf, chunk_text
+from src.pdf_processor import extract_text_from_pdf, chunk_text, chunk_text_by_tokens
 from src.embeddings import create_embeddings_batch
 from src.vector_store import VectorStore
 
@@ -34,9 +34,18 @@ def process_pdf(pdf_path, pdf_name):
     text = extract_text_from_pdf(pdf_path)
     print(f"✓ Extracted {len(text)} chars")
 
-    # Step 2: Chunk the extracted text
-    print("\n[2/4] Chunking text ...")
-    chunks = chunk_text(text, chunk_size=1000, overlap=100)
+    # Step 2: Chunk the extracted text (by characters)
+    # Comment this step out if using chunk_text_by_tokens()
+    # print("\n[2/4] Chunking text by characters ...")
+    # chunks = chunk_text(text, chunk_size=250, overlap=50)
+    # print(f"✓ Created {len(chunks)} chunks")
+
+    # Step 2: Chunk the extracted text (by tokens)
+    # Comment this step out if using chunk_text()
+    print("\n[2/4] Chunking text by tokens ...")
+    chunks = chunk_text_by_tokens(
+        text, chunk_size=150, overlap=40, model="text-embedding-3-small"
+    )
     print(f"✓ Created {len(chunks)} chunks")
 
     # Step 3: Create embeddings for the chunks

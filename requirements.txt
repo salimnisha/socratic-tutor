@@ -2,3 +2,4 @@ openai==1.54.3
 pypdf2==3.0.1
 python-dotenv==1.0.0
 numpy==1.26.4
+tiktoken=0.7.0
