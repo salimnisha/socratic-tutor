@@ -3,7 +3,7 @@
 """Quick test script for PDF extraction"""
 
 from src.pdf_processor import extract_text_from_pdf
-from src.pdf_processor import chunk_text
+from src.pdf_processor import chunk_text_by_chars
 from src.embeddings import create_embedding, create_embeddings_batch
 
 # ----------------------------------------------------------
@@ -27,7 +27,7 @@ print("\n" + "=" * 50)
 print("TESTING CHUNKING")
 print("=" * 50)
 
-chunks = chunk_text(text, chunk_size=1000, overlap=100)
+chunks = chunk_text_by_chars(text, chunk_size=1000, overlap=100)
 
 # Show chunk details
 print(f"\n✓ Create {len(chunks)} chunks")

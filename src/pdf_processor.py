@@ -55,7 +55,7 @@ def extract_text_from_pdf(pdf_path):
 # --------------------------------------------------
 # Function: Split text into overlapping chunks
 # --------------------------------------------------
-def chunk_text(text, chunk_size=1000, overlap=100):
+def chunk_text_by_chars(text, chunk_size=1000, overlap=100):
     """
     Split text into overlapping chunks based on character count
     Note: function below (chunk_text_by_tokens) makes chunks based on token count
@@ -132,7 +132,7 @@ def chunk_text_by_tokens(
     lines = text.split("\n")
 
     # Remove empty lines and whitespaces
-    lines = [line.strip() for line in lines if line.strip()]
+    lines = [line for line in lines if line.strip()]
 
     # Initialize tokenizer
     encoding = tiktoken.encoding_for_model(model)
