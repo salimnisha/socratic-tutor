@@ -18,6 +18,9 @@ from src.pdf_processor import (
 from src.embeddings import create_embeddings_batch
 from src.vector_store import VectorStore
 
+import time
+from logger_utils import log_data, create_new_run_id, PROCESS_PDF_COLUMNS
+
 
 # ---------------------------------------------------------
 def process_pdf(pdf_path, pdf_name):
@@ -28,6 +31,10 @@ def process_pdf(pdf_path, pdf_name):
         pdf_path (str): path where the pdf resides (e.g., data/Ch_1_Chip_Huyen.pdf)
         pdf_name (str): name of the pdf (e.g., Ch_1_Chip_Huyen)
     """
+
+    # Start the clock and create run id (for logging)
+    start_time = time.time()
+    run_id = create_new_run_id()
 
     print("=" * 60)
     print(f"Processing {pdf_name}")
@@ -41,21 +48,27 @@ def process_pdf(pdf_path, pdf_name):
     # Step 2: Chunk the extracted text (by characters)
     # Comment this step out if using chunk_text_by_tokens()
     # print("\n[2/4] Chunking text by characters ...")
-    # chunks = chunk_text_by_chars(text, chunk_size=250, overlap=50)
+    # chunks, processing_metadata = chunk_text_by_chars(text, chunk_size=250, overlap=50, return_metadata=True)
     # print(f"✓ Created {len(chunks)} chunks")
 
     # Step 2: Chunk the extracted text (by tokens)
     # Comment this step out if using chunk_text_by_chars()
     print("\n[2/4] Chunking text by tokens ...")
-    chunks = chunk_text_by_tokens(
-        text, chunk_size=150, overlap=40, model="text-embedding-3-small"
+    chunks, processing_metadata = chunk_text_by_tokens(
+        text,
+        chunk_size=150,
+        overlap=40,
+        model="text-embedding-3-small",
+        return_metadata=True,
     )
     print(f"✓ Created {len(chunks)} chunks")
 
     # Step 3: Create embeddings for the chunks
     print("\n[3/4] Creating embeddings ...")
     print("⚠️  This will cost approximately ${:.4f}".format(len(chunks) * 0.00002))
-    embeddings = create_embeddings_batch(chunks, show_progress=True)
+    embeddings, embeddings_metadata = create_embeddings_batch(
+        chunks, show_progress=True, return_metadata=True
+    )
     print(f"✓ Created {len(embeddings)} embeddings")
 
     # Step 4: Save to disk
@@ -66,6 +79,21 @@ def process_pdf(pdf_path, pdf_name):
     print("=" * 60)
     print("✓ Processing complete!")
     print("=" * 60)
+
+    # Log data to csv and json log files
+    print("\n🗒️ Logging data ...")
+    duration = round(time.time() - start_time, 2)
+    log_entry = {
+        "run_id": run_id,
+        "stage": "process_pdf",
+        "time_taken_sec": duration,
+        "pdf_name": pdf_name,
+        "notes": "",
+    }
+    log_entry.update(processing_metadata)
+    log_entry.update(embeddings_metadata)
+
+    log_data(log_entry, PROCESS_PDF_COLUMNS)
 
     return chunks, embeddings
 

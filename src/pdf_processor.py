@@ -13,6 +13,7 @@ This module handles:
 from PyPDF2 import PdfReader
 from pathlib import Path
 import tiktoken
+from statistics import mean
 
 
 # --------------------------------------------------
@@ -55,7 +56,7 @@ def extract_text_from_pdf(pdf_path):
 # --------------------------------------------------
 # Function: Split text into overlapping chunks
 # --------------------------------------------------
-def chunk_text_by_chars(text, chunk_size=1000, overlap=100):
+def chunk_text_by_chars(text, chunk_size=1000, overlap=100, return_metadata=False):
     """
     Split text into overlapping chunks based on character count
     Note: function below (chunk_text_by_tokens) makes chunks based on token count
@@ -67,11 +68,13 @@ def chunk_text_by_chars(text, chunk_size=1000, overlap=100):
 
     Args:
     text (str): The text to create chunks
-    chunk_size: Target size of each chunk (characters)
-    overlap: Overlap characters to add to beginning of each chunk to retain context
+    chunk_size (int): Target size of each chunk (characters)
+    overlap (int): Overlap characters to add to beginning of each chunk to retain context
+    return_metadata (dict): Data for logfile
 
     Returns:
-    list: List of text chunks with overlap
+    list: List of text chunks with overlap (if return_metadata is False)
+    list, dict: List of text chunks and dict for logging (if return_metadata is True)
     """
 
     # First, replace the page number strings (which we added during extraction) with Page Markers
@@ -102,27 +105,53 @@ def chunk_text_by_chars(text, chunk_size=1000, overlap=100):
     if current_chunk:
         chunks.append(current_chunk.strip())
 
-    return chunks
+    # Avg chunk size created
+    avg_chunk_size_created = mean(len(chunk) for chunk in chunks)
+
+    # Construct metadata for logging
+    metadata = {
+        "chunk_size": chunk_size,
+        "overlap": overlap,
+        "chunking_method": "characters",
+        "num_chunks": len(chunks),
+        "avg_chunk_size_created": round(avg_chunk_size_created, 2),
+    }
+
+    if return_metadata:
+        return chunks, metadata
+    else:
+        return chunks
 
 
 # --------------------------------------------------
 # Function: Split text into overlapping tokens
 # --------------------------------------------------
 def chunk_text_by_tokens(
-    text, chunk_size=500, overlap=50, model="text-embedding-3-small"
+    text,
+    chunk_size=500,
+    overlap=50,
+    model="text-embedding-3-small",
+    return_metadata=False,
 ):
     """
     Create overlapping chunks based on token count (not character count)
     Note: Function above (create_chunks) creates chunks based on character count
 
     Args:
-        text (str): Text to split into chunks
-        chunk_size (int): Target number of tokens per chunk
-        overlap (int): Number of tokens to overlap between consecutive chunks
-        model (str): Model name to get correct tokenizer
+        text::(str)
+            Text to split into chunks
+        chunk_size::(int)
+            Target number of tokens per chunk
+        overlap::(int)
+            Number of tokens to overlap between consecutive chunks
+        model::(str)
+            Model name to get correct tokenizer
+        return_metadata::(bool)
+            Return metadata for logfile or not
 
     Returns:
-        list: list of chunks (text strings) with overlap
+        list: list of chunks (text strings) with overlap (if return_metadata=False)
+        list, dict: list of chunks, dict of metadata for logging (if return_metadata=True)
     """
 
     # Replace the page number strings with PAGEMARKER
@@ -159,4 +188,19 @@ def chunk_text_by_tokens(
     chunk_text = encoding.decode(current_tokens)
     chunks.append(chunk_text)
 
-    return chunks
+    # Avg chunk size created
+    avg_chunk_size_created = mean(len(encoding.encode(chunk)) for chunk in chunks)
+
+    # Construct metadata for logging
+    metadata = {
+        "chunk_size": chunk_size,
+        "overlap": overlap,
+        "chunking_method": "tokens",
+        "num_chunks": len(chunks),
+        "avg_chunk_size_created": round(avg_chunk_size_created, 2),
+    }
+
+    if return_metadata:
+        return chunks, metadata
+    else:
+        return chunks
