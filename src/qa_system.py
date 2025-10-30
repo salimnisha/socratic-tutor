@@ -212,7 +212,7 @@ def answer_query(
 
     print("\n💡 Answer:")
     print(answer)
-    print(f"\n📊 Stats")
+    print("\n📊 Stats")
     print(f"     Tokens: {input_tokens} in, {output_tokens} out")
     print(f"     Cost: {total_cost:.6f}")
     print(f"     Time: {metadata['total_time_sec']}")
