@@ -58,7 +58,11 @@ def create_embedding(text, return_metadata=False):
     cost = (tokens_used / 1000) * EMBEDDING_COST_PER_1K_TOKENS
 
     # Create metadata
-    metadata = {"tokens_used": tokens_used, "cost_usd": cost, "model": EMBEDDING_MODEL}
+    metadata = {
+        "query_embedding_tokens": tokens_used,
+        "query_embedding_cost_usd": round(cost, 6),
+        "embedding_model": EMBEDDING_MODEL,
+    }
 
     if return_metadata:
         return embedding, metadata
@@ -100,8 +104,8 @@ def create_embeddings_batch(texts, show_progress=True, return_metadata=False):
         embedding, metadata = create_embedding(text, return_metadata=True)
         embeddings.append(embedding)
 
-        embedding_tokens += metadata["tokens_used"]
-        embedding_cost += metadata["cost_usd"]
+        embedding_tokens += metadata["query_embedding_tokens"]
+        embedding_cost += metadata["query_embedding_cost_usd"]
 
     total_metadata = {
         "num_embeddings": len(embeddings),

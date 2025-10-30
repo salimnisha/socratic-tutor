@@ -5,10 +5,14 @@
 sessions/
 personal/
 data/chip_huyen_ch_1.pdf
+sandbox.py
 
 # Vector database
 vector_store/
 chroma_db/
+
+# Logs
+logs/
 
 # Python
 __pychache__/

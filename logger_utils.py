@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 PROCESS_PDF_COLUMNS = [
+    # Basics
     "run_id",
     "timestamp",
     "stage",
@@ -36,41 +37,53 @@ PROCESS_PDF_COLUMNS = [
     "notes",
 ]
 
-LOG_COLUMN_ORDER = [
-    # Identifiers
+RETRIEVAL_COLUMNS = [
+    # Basics
     "run_id",
     "timestamp",
     "stage",
     # Inputs
-    "pdf_name",
     "query",
-    # Processing
-    "chunking_method",
-    "num_chunks",
-    "chunk_size",
-    "overlap",
-    "avg_chunk_size_created",
     "top_k",
-    # Similarity
-    "max_similarity",
+    # Scores
+    "similarity_scores",
     "avg_similarity",
-    "all_top3_scores",
-    "avg_top3_score",
+    "max_similarity",
     # Tokens and cost
-    "num_embeddings",
-    "embedding_tokens",
-    "avg_tokens_per_embedding",
-    "gpt_input_tokens",
-    "gpt_output_tokens",
-    "total_tokens",
-    "embedding_cost_usd",
-    "gpt_cost_usd",
-    "total_cost_usd",
-    # Timing
-    "time_taken_sec",
+    "query_embedding_tokens",
+    "query_embedding_cost_usd",
     # Model
     "embedding_model",
+    # Timing
+    "time_taken_sec",
+    # Notes
+    "notes",
+]
+
+QA_COLUMNS = [
+    # Basics
+    "run_id",
+    "timestamp",
+    "stage",
+    # Inputs
+    "query",
+    "pdf_name",
+    "top_k",
+    "max_tokens_limit",
     "temperature",
+    # Tokens and cost
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cost_usd",
+    # Scores
+    "avg_similarity",
+    # Timing
+    "retrieval_time_ms",
+    "qa_time_ms",
+    "total_time_sec",
+    # Model
+    "model",
     # Notes
     "notes",
 ]
@@ -115,6 +128,8 @@ def log_data(log_entry, column_order):
         logfile_name = "processing"
     elif "test_retrieval" in caller:
         logfile_name = "retrieval"
+    elif "test_qa" in caller:
+        logfile_name = "query"
     else:
         logfile_name = "other"
 

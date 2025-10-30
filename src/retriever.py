@@ -49,7 +49,7 @@ def cosine_similarity(vec1, vec2):
 
 
 # ------------------------------------------------------
-def retrieve_relevant_chunks(query, pdf_name, top_k=3):
+def retrieve_relevant_chunks(query, pdf_name, top_k, return_metadata=False):
     """
     Find the most relavant chunks for a query
 
@@ -63,10 +63,13 @@ def retrieve_relevant_chunks(query, pdf_name, top_k=3):
         query (str): The question asked by user
         pdf_name (str): Which pdf to search (e.g., "chip_huyen_ch_1")
         top_k (int): The number of top similar chunks to return
+        return_metadata (bool): If true, return metadata dictionary for logging
 
     Returns:
-        list: List of tuples - (chunk, similarity)
+        list (if return_metadata is false): List of tuples - (chunk, similarity)
         Sorted by the highest similarity score
+        list, dict (if return_metadata is true): List of tuples, dictionary of metadata
+
 
     Example:
         results = retrieve_relevant_chunks("What is self-supervision?", "chip_huyen_ch_1", top_k=3)
@@ -85,7 +88,13 @@ def retrieve_relevant_chunks(query, pdf_name, top_k=3):
 
     # Create embedding for the query
     print(f"🔍 Searching for '{query}'")
-    query_embedding = create_embedding(query)
+
+    query_embedding = []
+    metadata = {}
+    if return_metadata:
+        query_embedding, metadata = create_embedding(query, return_metadata)
+    else:
+        query_embedding = create_embedding(query)
 
     # Calculate cosine similarity between query and embeddings
     similarities = []
@@ -106,4 +115,7 @@ def retrieve_relevant_chunks(query, pdf_name, top_k=3):
 
     print(f"✓ Found {len(results)} relevant chunks")
 
-    return results
+    if return_metadata:
+        return results, metadata
+    else:
+        return results
