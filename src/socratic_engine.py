@@ -25,6 +25,9 @@ MODEL = "gpt-4o-mini"
 TEACHING_TEMPERATURE = 0.7  # more creative than Q&A, so higher temperature
 
 
+# -------------------------------------------------
+# Generate socrastic question on the topic
+# -------------------------------------------------
 def generate_teaching_question(
     topic, pdf_name="chip_huyen_ch_1", difficulty="beginner"
 ):
@@ -121,5 +124,118 @@ def generate_teaching_question(
     result["context_used"] = [chunk for chunk, _ in context_chunks]
 
     print(f"✓ Generated question: {result['question'][:100]}...")
+
+    return result
+
+
+# -------------------------------------------------
+# Evaluate the answer given by the student
+# -------------------------------------------------
+def evaluate_answer(question, student_answer, context, teaching_goal):
+    """
+    Evaluate student's answers and provide feedback
+
+    Evaluation considers:
+    - Correctness (is it right?)
+    - Completeness (did it cover key points?)
+    - Misconceptions (do they misunderstand something?)
+
+    Feedback should:
+    - Acknowledge what's correct
+    - Gently guide towards gaps
+    - Ask follow-up questions
+
+    Args:
+        question::str
+            The question asked
+        student_answer::str
+            Student's response
+        context::list
+            Relevant chunks retrieved from the textbook
+        teaching_goal::str
+            What we're trying to teach
+
+        Returns:
+            dict: {
+                "evaluation": {
+                    "correctness": "correct" | "partial" | "incorrect",
+                    "strenghts": [list of good points],
+                    "gaps": [list of missing points],
+                    "misconeptions": [list of misunderstandings]
+                },
+                "feedback": str, # What to tell the student
+                "next_question": str # Follow-up question (or None if complete)
+            }
+    """
+
+    print("\n🔍 Evaluating answer")
+
+    # Prepare context
+    context_text = "\n\n---\n\n".join(context)
+
+    messages = [
+        {
+            "role": "system",
+            "content": """You are a Socratic tutor evaluating a student's answer. 
+
+                    EVALUATION CRITERIA:
+                    1. Correctness: Is the core understanding right?
+                    2. Completeness: Did they cover the key concepts?
+                    3. Misconceptions: Are there any misunderstandings?
+
+                    FEEDBACK PRINCIPLES:
+                    1. Always start with what's good (even if wrong, find something!)
+                    2. Be encouraging and supportive
+                    3. Guide toward gaps with questions, not lectures
+                    4. If completely wrong, ask simpler question to build foundation
+
+                    RESPONSE STRUCTURE:
+                    Return JSON with:
+                    {
+                        "evaluation": {
+                            "correctness": "correct" | "partial" | "incorrect",
+                            "strengths": ["list", "of", "good", "points"],
+                            "gaps": ["list", "of", "missing", "concepts"],
+                            "misconceptions": ["list", "of", "misunderstandings"]
+                        },
+                        "feedback": "Your encouraging guiding response to student",
+                        "next_question": "Follow-up question to deepen understanding (or null if they have mastered it)"
+                    }
+
+                    FEEDBACK EXAMPLES:
+                    If CORRECT:
+                    "Excellent! You've graspec the key idea that [restate]. Now let's explore [next aspect]"
+
+                    If PARTIAL:
+                    "Great thinking! You're right that [correct part]. Let me ask you this: [question about gap]"
+
+                    INCORRECT:
+                    "I can see you're thinking hard about this! Let's try a simpler angle: [easier question]"
+            """,
+        },
+        {
+            "role": "user",
+            "content": f"""Question asked: {question} 
+                    Teaching goal" {teaching_goal}
+                    Student's answer: {student_answer}
+                    Context from textbook: {context_text}
+
+                    Evaluate the student's answer and provide Socratic feedback. Remember: guide, don't tell.
+
+                    Return ONLY valid JSON.
+                    """,
+        },
+    ]
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=messages,
+        temperature=TEACHING_TEMPERATURE,
+        response_format={"type": "json_object"},
+    )
+
+    result = json.loads(response.choices[0].message.content)
+
+    print(f"✔️ Evaluation: {result['evaluation']['correctness']}")
 
     return result
