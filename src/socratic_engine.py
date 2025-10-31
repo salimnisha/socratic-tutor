@@ -239,3 +239,116 @@ def evaluate_answer(question, student_answer, context, teaching_goal):
     print(f"✔️ Evaluation: {result['evaluation']['correctness']}")
 
     return result
+
+
+# -------------------------------------------------
+# Manage a teaching session
+# -------------------------------------------------
+def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5):
+    """
+    Conduct a complete socratic teaching session on a given topic
+
+    Flow:
+    1. Generate an opening question
+    2. Get student answer
+    3. Evaluate and provide feedback
+    4. Ask follow-up question
+    5. Repeat till student demonstrates mastery or max_turns reached
+
+    Args:
+        topic::str
+            Topic to teach
+        pdf_name::str
+            Name of the textbook
+        max_turns::int
+            Maximum number of Q&A cycles
+
+    Returns:
+        session::dict
+            Session summary with transcript
+            {"topic": str,
+             "final_assessment": str or None
+            "transcript": [
+                    {
+                    'evaluation': str
+                    'feedback': str
+                    }]
+            }
+    """
+    # A session dict to keep track of the question and answer through all turns
+    session = {"topic": topic, "transcript": [], "final_assessment": None}
+
+    # Generate the first question
+    question_data = generate_teaching_question(topic, pdf_name)
+    current_question = question_data["question"]
+    context = question_data["context_used"]
+    teaching_goal = question_data["teaching_goal"]
+
+    # Display
+    print(f"\n{'=' * 60}")
+    print(f"🎓 SOCRATIC TEACHING SESSION ON {topic}")
+    print("=" * 60)
+
+    turn = 0
+    while turn < max_turns:
+        turn += 1
+
+        # Display
+        print(f"\n{'-' * 60}")
+        print(f"Turn {turn}/{max_turns}")
+        print(f"\n{'-' * 60}")
+
+        # Ask question to student and get answer
+        print(f"🎓 Tutor: {current_question}")
+        student_answer = input("\n💭 You: ").strip()
+
+        if not student_answer:
+            print("Please provide an answer")
+            turn -= 1  # Don't count empty turns
+            continue
+
+        # Record in transcript
+        session["transcript"].append(
+            {"turn": turn, "question": current_question, "answer": student_answer}
+        )
+
+        # Evaluate the answer
+        evaluation_data = evaluate_answer(
+            current_question, student_answer, context, teaching_goal
+        )
+
+        # Give feedback
+        print(f"🎓 Tutor feedback: {evaluation_data['feedback']}")
+
+        # Record the evaluation and feedback in the latest transcript entry
+        session["transcript"][-1]["evaluation"] = evaluation_data["evaluation"]
+        session["transcript"][-1]["feedback"] = evaluation_data["feedback"]
+
+        # Check if session is done
+        # Done == Answer evaluated as correct and next question not generated (in the prompt to the model to evaluate the answer
+        # we have asked to return null for next_question if student has mastered the topic
+        if (
+            evaluation_data["evaluation"] == "correct"
+            and not evaluation_data["next_question"]
+        ):
+            print(
+                f"\n✔️ Excellent! You have demonstrated a solid understanding of {topic}"
+            )
+            session["final_assessment"] = "mastered"
+            break
+
+        # If not mastered, continue with the next question
+        if evaluation_data["next_question"]:
+            current_question = evaluation_data["next_question"]
+        else:
+            # If model has not returned a follow-up, generate a new question at the next difficulty level
+            question_data = generate_teaching_question(
+                topic, pdf_name, difficulty="intermediate"
+            )
+            current_question = question_data["question"]
+
+        if turn >= max_turns:
+            print(f"\n⏰ Session complete! We covered a lot about {topic}")
+            session["final_assessment"] = "in progress"
+
+    return session
