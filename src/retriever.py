@@ -66,9 +66,9 @@ def retrieve_relevant_chunks(query, pdf_name, top_k, return_metadata=False):
         return_metadata (bool): If true, return metadata dictionary for logging
 
     Returns:
-        list (if return_metadata is false): List of tuples - (chunk, similarity)
-        Sorted by the highest similarity score
-        list, dict (if return_metadata is true): List of tuples, dictionary of metadata
+        list (return_metadata==false): List of tuples - (chunk, similarity) sorted by the highest similarity score
+        OR
+        list, dict (return_metadata==true): List of tuples, dictionary of metadata
 
 
     Example:
