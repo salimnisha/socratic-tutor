@@ -12,9 +12,11 @@ This module handles:
 
 import os
 import json
+import time
 from openai import OpenAI
 from dotenv import load_dotenv
 from src.retriever import retrieve_relevant_chunks
+from logger_utils import TEACHING_COLUMNS, log_data
 
 # Load environment
 load_dotenv()
@@ -23,6 +25,21 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Constants
 MODEL = "gpt-4o-mini"
 TEACHING_TEMPERATURE = 0.7  # more creative than Q&A, so higher temperature
+PRICING = {
+    "gpt-4o-mini": {"input": 0.150 / 1_000_000, "output": 0.600 / 1_000_000}
+}  # Pricing for cost calculation
+
+
+# -------------------------------------------------
+# Calculate cost
+# -------------------------------------------------
+def calculate_cost(model, input_tokens, output_tokens):
+    """Calculate cost of API call"""
+    if model not in PRICING:
+        return 0.0
+    input_cost = input_tokens * PRICING[model]["input"]
+    output_cost = output_tokens * PRICING[model]["output"]
+    return input_cost + output_cost
 
 
 # -------------------------------------------------
@@ -31,8 +48,7 @@ TEACHING_TEMPERATURE = 0.7  # more creative than Q&A, so higher temperature
 def generate_teaching_question(
     topic, pdf_name="chip_huyen_ch_1", difficulty="beginner"
 ):
-    """
-    Generate a socaratic question to teach about a topic.
+    """Generate a socaratic question to teach about a topic.
 
     The question should:
     - Guide discovery (not just test recall)
@@ -131,9 +147,10 @@ def generate_teaching_question(
 # -------------------------------------------------
 # Evaluate the answer given by the student
 # -------------------------------------------------
-def evaluate_answer(question, student_answer, context, teaching_goal):
-    """
-    Evaluate student's answers and provide feedback
+def evaluate_answer(
+    question, student_answer, context, teaching_goal, return_metadata=False
+):
+    """Evaluate student's answers and provide feedback
 
     Evaluation considers:
     - Correctness (is it right?)
@@ -154,9 +171,12 @@ def evaluate_answer(question, student_answer, context, teaching_goal):
             Relevant chunks retrieved from the textbook
         teaching_goal::str
             What we're trying to teach
+        return_metadata::bool (=False)
+            Whether to return metadata dict for logging or not
 
         Returns:
-            dict: {
+            result::dict
+            {
                 "evaluation": {
                     "correctness": "correct" | "partial" | "incorrect",
                     "strenghts": [list of good points],
@@ -166,7 +186,12 @@ def evaluate_answer(question, student_answer, context, teaching_goal):
                 "feedback": str, # What to tell the student
                 "next_question": str # Follow-up question (or None if complete)
             }
+            # When return_metadata=True
+            result, metadata::dict, dict
     """
+
+    # Start tracking time for logging
+    start_time = time.time()
 
     print("\n🔍 Evaluating answer")
 
@@ -238,15 +263,33 @@ def evaluate_answer(question, student_answer, context, teaching_goal):
 
     print(f"✔️ Evaluation: {result['evaluation']['correctness']}")
 
-    return result
+    # Prepare metadata for logging
+    if return_metadata is True:
+        total_time_sec = round(time.time() - start_time, 3)
+        tokens_used = response.usage.total_tokens
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+        cost_usd = calculate_cost(MODEL, input_tokens, output_tokens)
+
+        metadata = {
+            "total_time_sec": total_time_sec,
+            "tokens_used": tokens_used,
+            "cost_usd": cost_usd,
+            "context_chars": len(context_text),
+            "num_chunks": len(context),
+        }
+
+    if return_metadata is True:
+        return result, metadata
+    else:
+        return result
 
 
 # -------------------------------------------------
 # Manage a teaching session
 # -------------------------------------------------
-def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5):
-    """
-    Conduct a complete socratic teaching session on a given topic
+def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5, return_metadata=False):
+    """Conduct a complete socratic teaching session on a given topic
 
     Flow:
     1. Generate an opening question
@@ -262,6 +305,8 @@ def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5):
             Name of the textbook
         max_turns::int
             Maximum number of Q&A cycles
+        return_metadata::bool (=False)
+            Whether to return metadata or not
 
     Returns:
         session::dict
@@ -274,9 +319,12 @@ def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5):
                     'feedback': str
                     }]
             }
+        # if return_metada is True
+        session, metadata::dict, list[dict, dict,...]
     """
     # A session dict to keep track of the question and answer through all turns
     session = {"topic": topic, "transcript": [], "final_assessment": None}
+    metadata = []
 
     # Generate the first question
     question_data = generate_teaching_question(topic, pdf_name)
@@ -296,7 +344,7 @@ def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5):
         # Display
         print(f"\n{'-' * 60}")
         print(f"Turn {turn}/{max_turns}")
-        print(f"\n{'-' * 60}")
+        print(f"{'-' * 60}")
 
         # Ask question to student and get answer
         print(f"🎓 Tutor: {current_question}")
@@ -313,12 +361,35 @@ def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5):
         )
 
         # Evaluate the answer
-        evaluation_data = evaluate_answer(
-            current_question, student_answer, context, teaching_goal
+        result = evaluate_answer(
+            current_question,
+            student_answer,
+            context,
+            teaching_goal,
+            return_metadata,
         )
+        if return_metadata:
+            evaluation_data, eval_metadata = result
+        else:
+            evaluation_data = result
 
         # Give feedback
         print(f"🎓 Tutor feedback: {evaluation_data['feedback']}")
+
+        # Prepare metadata for logging
+        if return_metadata:
+            teaching_metadata = {
+                "turn": turn,
+                "topic": topic,
+                "pdf_name": pdf_name,
+                "correctness": evaluation_data["evaluation"]["correctness"],
+                "num_gaps": len(evaluation_data["evaluation"]["gaps"]),
+                "answer_length": len(student_answer),
+                "has_followup": bool(evaluation_data.get("next_question")),
+                "model": MODEL,
+            }
+            teaching_metadata.update(eval_metadata)
+            metadata.append(teaching_metadata)
 
         # Record the evaluation and feedback in the latest transcript entry
         session["transcript"][-1]["evaluation"] = evaluation_data["evaluation"]
@@ -351,4 +422,7 @@ def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5):
             print(f"\n⏰ Session complete! We covered a lot about {topic}")
             session["final_assessment"] = "in progress"
 
-    return session
+    if return_metadata:
+        return session, metadata
+    else:
+        return session

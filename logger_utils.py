@@ -88,6 +88,36 @@ QA_COLUMNS = [
     "notes",
 ]
 
+TEACHING_COLUMNS = [
+    # Basics
+    "run_id",
+    "timestamp",
+    "stage",
+    # Session and inputs
+    "session_id",
+    "turn",
+    "topic",
+    "pdf_name",
+    # Context
+    "num_chunks",
+    "context_chars",
+    # Evaluation
+    "correctness",
+    "num_gaps",
+    # Conversation
+    "answer_length",
+    "has_followup",
+    # Cost
+    "tokens_used",
+    "cost_usd",
+    # Timing
+    "total_time_sec",
+    # Model
+    "model",
+    # Notes
+    "notes",
+]
+
 
 # ------------------------------------------------
 # Run ID Management
@@ -109,7 +139,7 @@ def get_existing_run_id():
 # ------------------------------------------------
 # Logging
 # ------------------------------------------------
-def log_data(log_entry, column_order):
+def log_data(log_entry, column_order, logfile_name=None):
     """
     Simple log file that appends to csv and jsonl
     Autofills timestamp and a short summary note
@@ -122,16 +152,17 @@ def log_data(log_entry, column_order):
             The order of the headers in csv file
     """
 
-    # Detect the caller script
-    caller = inspect.stack()[1].filename.lower()
-    if "process_pdf" in caller:
-        logfile_name = "processing"
-    elif "test_retrieval" in caller:
-        logfile_name = "retrieval"
-    elif "test_qa" in caller:
-        logfile_name = "query"
-    else:
-        logfile_name = "other"
+    if logfile_name is None:
+        # Detect the caller script
+        caller = inspect.stack()[1].filename.lower()
+        if "process_pdf" in caller:
+            logfile_name = "processing"
+        elif "test_retrieval" in caller:
+            logfile_name = "retrieval"
+        elif "test_qa" in caller:
+            logfile_name = "query"
+        else:
+            logfile_name = "other"
 
     # Set up paths
     logs_dir = Path("logs")

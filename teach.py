@@ -7,8 +7,9 @@ Usage:
     python teach.py
 """
 
-from src.socratic_engine import teach_topic
 import sys
+from src.socratic_engine import teach_topic
+from logger_utils import TEACHING_COLUMNS, log_data, get_existing_run_id
 
 
 def main():
@@ -40,9 +41,9 @@ def main():
         print("Not a valid selection. Bye!")
         sys.exit(0)
 
-    # Teach the topic
+    # Teach the topic, collect metadata for logging
     topic = topics[topic_number - 1]
-    session = teach_topic(topic, max_turns=5)
+    session, metadata_list = teach_topic(topic, max_turns=5, return_metadata=True)
 
     # Offer to save the transcript
     print("\n" + "=" * 60)
@@ -59,13 +60,23 @@ def main():
 
         # Save the session
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        filename = f"session - {topic.replace(' ', '_')}_{timestamp}.json"
+        session_id = f"{topic.replace(' ', '_')}_{timestamp}"
+        filename = f"session - {session_id}.json"
         filepath = sessions_dir / filename
 
         with open(filepath, "w") as f:
             json.dump(session, indent=2, fp=f)
 
         print(f"✔️ Session saved to {filepath}")
+
+        # Also log the metadata after adding the session id (same as topic + timestamp)
+        # This will enable searching json session dump and csv log using the same session id
+        run_id = get_existing_run_id()
+        for teaching_metadata in metadata_list:
+            teaching_metadata["run_id"] = run_id
+            teaching_metadata["stage"] = "teach"
+            teaching_metadata["session_id"] = session_id
+            log_data(teaching_metadata, TEACHING_COLUMNS, logfile_name="teaching")
 
     print("\nThank you for learning with me! 🎓")
 
