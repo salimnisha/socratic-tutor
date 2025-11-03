@@ -16,7 +16,6 @@ import time
 from openai import OpenAI
 from dotenv import load_dotenv
 from src.retriever import retrieve_relevant_chunks
-from logger_utils import TEACHING_COLUMNS, log_data
 
 # Load environment
 load_dotenv()
