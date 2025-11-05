@@ -16,6 +16,7 @@ from src.pdf_processor import (
     chunk_text_by_tokens,
 )
 from src.embeddings import create_embeddings_batch
+from src.topic_extractor import extract_topics
 from src.vector_store import VectorStore
 
 import time
@@ -41,30 +42,30 @@ def process_pdf(pdf_path, pdf_name):
     print("=" * 60)
 
     # Step 1: Extract text from PDF
-    print("\n[1/4] Extracting text from {pdf} ...")
+    print("\n[1/6] Extracting text from {pdf} ...")
     text = extract_text_from_pdf(pdf_path)
     print(f"✓ Extracted {len(text)} chars")
 
     # Step 2: Chunk the extracted text (by characters)
     # Comment this step out if using chunk_text_by_tokens()
-    # print("\n[2/4] Chunking text by characters ...")
+    # print("\n[2/6] Chunking text by characters ...")
     # chunks, processing_metadata = chunk_text_by_chars(text, chunk_size=250, overlap=50, return_metadata=True)
     # print(f"✓ Created {len(chunks)} chunks")
 
     # Step 2: Chunk the extracted text (by tokens)
     # Comment this step out if using chunk_text_by_chars()
-    print("\n[2/4] Chunking text by tokens ...")
+    print("\n[2/6] Chunking text by tokens ...")
     chunks, processing_metadata = chunk_text_by_tokens(
         text,
-        chunk_size=150,
-        overlap=40,
+        chunk_size=250,
+        overlap=50,
         model="text-embedding-3-small",
         return_metadata=True,
     )
     print(f"✓ Created {len(chunks)} chunks")
 
     # Step 3: Create embeddings for the chunks
-    print("\n[3/4] Creating embeddings ...")
+    print("\n[3/6] Creating embeddings ...")
     print("⚠️  This will cost approximately ${:.4f}".format(len(chunks) * 0.00002))
     embeddings, embeddings_metadata = create_embeddings_batch(
         chunks, show_progress=True, return_metadata=True
@@ -72,11 +73,19 @@ def process_pdf(pdf_path, pdf_name):
     print(f"✓ Created {len(embeddings)} embeddings")
 
     # Step 4: Save to disk
-    print("\n[4/4] Saving to vector store ...")
+    print("\n[4/6] Saving chunks and embeddings to vector store ...")
     store = VectorStore()
     store.save(pdf_name, chunks, embeddings)
 
-    print("=" * 60)
+    # Step 5: Create topic map of the pdf from extracted text
+    print(f"\n[5/6] Extracting topics from {pdf_name}...")
+    topic_map = extract_topics(text, pdf_name)
+
+    # Step 6: Save topic map to vector store
+    print("\n[6/6] Saving topic map to vector store...")
+    store.save_topics(pdf_name, topic_map)
+
+    print(f"\n{'=' * 60}")
     print("✓ Processing complete!")
     print("=" * 60)
 

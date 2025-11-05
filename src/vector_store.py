@@ -32,6 +32,8 @@ class VectorStore:
         self.storage_dir.mkdir(exist_ok=True)
 
     # --------------------------------------------------
+    # Save chunk and embeddings pairs to vector_store
+    # --------------------------------------------------
     def save(self, pdf_name, chunks, embeddings):
         """
         Stores chunk-embedding pairings to disk
@@ -61,6 +63,8 @@ class VectorStore:
         print(f"✓ Saved {len(chunks)} chunks to {file}")
 
     # --------------------------------------------------
+    # Load chunk and embeddings pairs from vector_store
+    # --------------------------------------------------
     def load(self, pdf_name):
         """
         Loads chunks and embeddings from disk
@@ -87,3 +91,53 @@ class VectorStore:
         print(f"✓ Loaded {len(chunks)} chunk-embeddings from {pdf_name}")
 
         return chunks, embeddings
+
+    # --------------------------------------------------
+    # Save topic map of the entire pdf
+    # --------------------------------------------------
+    def save_topics(self, pdf_name, topic_map):
+        """Save topic map of the pdf as json
+
+        Args:
+            pdf_name::str
+                Name of the source pdf
+            topic_map::dict
+                Topics extracted from pdf as json
+                {
+                    "pdf_summary": str,
+                    "topics": {
+                        "topic_name": {
+                            "summary": str,
+                            "key_points": [list],
+                            "concepts": [list]
+                        }
+                    }
+                }
+        """
+
+        file = self.storage_dir / f"{pdf_name}_topics.json"
+        with open(file, "w") as f:
+            json.dump(topic_map, f, indent=2)
+
+        print(f"✓ Saved {len(topic_map.get('topics', {}).keys())} topics to {file}")
+
+    # --------------------------------------------------
+    # Load topics of a given pdf
+    # --------------------------------------------------
+    def load_topics(self, pdf_name):
+        """Load the topics map of the pdf
+
+        Arg:
+            pdf_name::str
+                Name of the pdf (e.g., "chip_huyen_ch_1")
+        """
+
+        file = self.storage_dir / f"{pdf_name}_topics.json"
+
+        if not file.exists():
+            return None
+
+        with open(file, "r") as f:
+            topic_map = json.load(f)
+
+        return topic_map
