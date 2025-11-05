@@ -139,9 +139,9 @@ def extract_topics(full_text, pdf_name, max_tokens=100_000):
     # Extract the topic map from response
     topic_map = json.loads(response.choices[0].message.content)
 
-    num_topics = len(topic_map.get("topics", {}))
-    print(f"\n✓ Extracted {num_topics} topics")
-    for i, topic in enumerate(topic_map.get("topics", {}).keys(), 1):
+    topics = topic_map.get("topics", {}).keys()
+    print(f"\n✓ Extracted {len(topics)} topics")
+    for i, topic in enumerate(topics, 1):
         print(f"{i}. {topic}")
 
     return topic_map
