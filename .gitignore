@@ -1,8 +1,9 @@
 # API Keys
 .env
 
-# Personal data
+# Personal and other data
 sessions/
+student_profiles/
 personal/
 data/chip_huyen_ch_1.pdf
 sandbox.py
