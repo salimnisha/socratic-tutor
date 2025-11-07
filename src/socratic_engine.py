@@ -13,6 +13,7 @@ This module handles:
 import os
 import json
 import time
+from datetime import datetime
 from openai import OpenAI
 from dotenv import load_dotenv
 from src.retriever import retrieve_relevant_chunks
@@ -45,7 +46,7 @@ def calculate_cost(model, input_tokens, output_tokens):
 # Generate socrastic question on the topic
 # -------------------------------------------------
 def generate_teaching_question(
-    topic, pdf_name="chip_huyen_ch_1", difficulty="beginner"
+    topic, pdf_name="chip_huyen_ch_1", difficulty="beginner", context_chunks=None
 ):
     """Generate a socaratic question to teach about a topic.
 
@@ -61,6 +62,8 @@ def generate_teaching_question(
             Which textbook to use
         difficulty::str
             "beginner", "intermediate", "difficult"
+        context_chunks::list
+            context from the pdf, defaults to None
 
     Returns:
         result::dict
@@ -75,9 +78,10 @@ def generate_teaching_question(
     print(f"\n🎓 Generating teaching question about {topic}")
 
     # Retrieve relevant material
-    context_chunks = retrieve_relevant_chunks(
-        query=f"Explain {topic} in detail", pdf_name=pdf_name, top_k=3
-    )
+    if not context_chunks:
+        context_chunks = retrieve_relevant_chunks(
+            query=f"Explain this in detail: {topic}", pdf_name=pdf_name, top_k=3
+        )
 
     # Extract just the text
     context_text = "\n\n----\n\n".join(chunk for chunk, _ in context_chunks)
@@ -158,8 +162,10 @@ def evaluate_answer(
 
     Feedback should:
     - Acknowledge what's correct
-    - Gently guide towards gaps
-    - Ask follow-up questions
+    - Gently guide towards gaps using hints
+
+    Follow-up question should:
+    - Build on student's previous answer so it feels conversational
 
     Args:
         question::str
@@ -185,7 +191,7 @@ def evaluate_answer(
                 "feedback": str, # What to tell the student
                 "next_question": str # Follow-up question (or None if complete)
             }
-            # When return_metadata=True
+            When return_metadata=True
             result, metadata::dict, dict
     """
 
@@ -204,14 +210,23 @@ def evaluate_answer(
 
                     EVALUATION CRITERIA:
                     1. Correctness: Is the core understanding right?
+                        - "correct": Student grasps the core concept (does not need to be perfect).
+                        - "partial": Student has some understanding but missing key points
+                        - "incorrect": Student fundamentally misunderstands
+
+                    Be encouraging! If student shows good understanding of the main idea, mark as "correct" even if they don't mention every detail.
+
                     2. Completeness: Did they cover the key concepts?
                     3. Misconceptions: Are there any misunderstandings?
 
                     FEEDBACK PRINCIPLES:
                     1. Always start with what's good (even if wrong, find something!)
                     2. Be encouraging and supportive
-                    3. Guide toward gaps with questions, not lectures
-                    4. If completely wrong, ask simpler question to build foundation
+                    3. Guide toward gaps with simple hints
+
+                    NEXT QUESTION:
+                    1. Build on the student's *own phrasing* for continuity.
+                    2. If answer is partial or incorrect, hint gently at the missing idea
 
                     RESPONSE STRUCTURE:
                     Return JSON with:
@@ -226,15 +241,45 @@ def evaluate_answer(
                         "next_question": "Follow-up question to deepen understanding (or null if they have mastered it)"
                     }
 
-                    FEEDBACK EXAMPLES:
-                    If CORRECT:
-                    "Excellent! You've graspec the key idea that [restate]. Now let's explore [next aspect]"
+                    EXAMPLES:
+                    If answer is CORRECT:
+                    {
+                        "evaluation": {"correctness": "correct"},
+                        "feedback": "Excellent! You've grasped the key idea that [restate].",
+                        "next_question": null
+                    }
+                    OR
+                    {
+                        "evaluation": {"correctness": "correct"},
+                        "feedback": "Nice work! You have understood that [restate]",
+                        "next_question": null
+                    }
 
-                    If PARTIAL:
-                    "Great thinking! You're right that [correct part]. Let me ask you this: [question about gap]"
+                    If answer is PARTIAL:
+                    {
+                        "evaluation": {"correctness": "partial"},
+                        "feedback": "Great thinking! You're right that [correct part].",
+                        "next_question": "What part of your answer might still be missing? [Question with a subtle hint]"
+                    }
+                    OR
+                    {
+                        "evaluation": {"correctness": "partial"},
+                        "feedback": "You’re on the right track. You've correctly identified [rephrase key ideas]",
+                        "next_question": "Can you expand on what happens in [specific case]?"
+                    }
 
-                    INCORRECT:
-                    "I can see you're thinking hard about this! Let's try a simpler angle: [easier question]"
+                    If answer is INCORRECT:
+                    {
+                        "evaluation": {"correctness": "incorrect"},
+                        "feedback": "I can see you're thinking hard about this!",
+                        "next_question": "Let's try a simpler angle: [easier question with hint]"
+                    }
+                    OR
+                    {
+                        "evaluation": {"correctness": "incorrect"},
+                        "feedback": "Not quite. Perhaps the question was confusing.",
+                        "next_question": "Let’s think about this differently — what would happen if we tried [opposite scenario]?"
+                    }
             """,
         },
         {
@@ -246,7 +291,7 @@ def evaluate_answer(
 
                     Evaluate the student's answer and provide Socratic feedback. Remember: guide, don't tell.
 
-                    Return ONLY valid JSON.
+                    Return ONLY valid JSON. Do not include any explanation or extra test.
                     """,
         },
     ]
@@ -425,3 +470,183 @@ def teach_topic(topic, pdf_name="chip_huyen_ch_1", max_turns=5, return_metadata=
         return session, metadata
     else:
         return session
+
+
+# -------------------------------------------------
+# Teach a topic using its concepts
+# -------------------------------------------------
+def teach_topic_with_concepts(
+    topic,
+    concepts,
+    pdf_name,
+    student_profile,
+    max_questions_per_concept=2,
+    return_metadata=False,
+) -> dict:
+    """Teach a topic concept by concept with progress tracking
+
+    Args:
+        topic (str): Topic name
+        concepts (list): list of concepts under the topic
+        pdf_name (str): Name of the source pdf
+        student_profile (StudentProfile): Instance of StudentProfile class with progress data
+        max_questions_per_concept (int, optional): How many questions to ask per concept. Defaults to 2.
+        return_metadata (bool, optional): If true, also returns metadata for logging. Defaults to False.
+
+    Returns:
+        dict | tuple(dict, list[dicts]):
+            - When return_metadata is False: return session (dict containing teaching transcript and learning results)
+            - When return_metadata is True: return tuple (session, metadata_list) where
+                • session (dict): session learning results and transcript
+                • metadata_list (list[dict]): Logging metadata for each processed step
+    """
+
+    session_id = f"{topic.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+    # Initialize the session data and metadata
+    session = {
+        "session_id": session_id,
+        "topic": topic,
+        "concepts_covered": [],
+        "transcript": [],
+        "concept_results": {},
+    }
+    metadata_list = []
+
+    # Main loop: Teach each concept in the topic
+    for concept_idx, concept in enumerate(concepts, 1):
+        print(f"\n{'=' * 60}")
+        print(f"📖 CONCEPT {concept_idx}/{len(concepts)}: {concept}")
+        print("=" * 60)
+
+        # Step 1: Check if concept already learned (skip if yes)
+        progress = student_profile.get_topic_progress(topic)
+        if progress and concept in progress["concepts_learned"]:
+            print(f"✔︎ You have already learned {concept}")
+            print("Moving to next concept...\n")
+            session["concept_results"][concept] = "already_learned"
+            continue
+
+        # Step 2: Retrieve context for this concept
+        # print("\n🔍 Retrieving relevant material...")
+        # context_chunks = retrieve_relevant_chunks(
+        #     query=f"{topic}: {concept}", pdf_name=pdf_name, top_k=5
+        # )
+        # context = [chunk for chunk, _ in context_chunks]
+        # [x] TODO: Can I not eliminate this step and for the context required in step 4.2, can't I use question_data["context_used"]?
+
+        # Step 3: Generate socratic question about the concept, using the context
+        print("🤖 Generating question...")
+        question_data = generate_teaching_question(
+            topic=f"{topic}: {concept}", pdf_name=pdf_name, difficulty="beginner"
+        )
+        current_question = question_data["question"]
+        teaching_goal = question_data["teaching_goal"]
+        context = question_data["context_used"]
+
+        # Step 4: (Inner loop) - Ask questions about the concept
+        #         (upto max_questions_per_concept times or till concept 'learned')
+        concept_mastered = False
+        questions_asked = 0
+
+        while questions_asked < max_questions_per_concept and not concept_mastered:
+            questions_asked += 1
+
+            print(f"\n{'-' * 60}")
+            print(f"❓ Question {questions_asked}/{max_questions_per_concept}:")
+            print("-" * 60)
+
+            # TODO: Here, show a concept summary when the question is asked for the first time
+
+            # Ask the question
+            print(f"\n🎓 Tutor: {current_question}")
+            student_answer = input("\n💭 You (or 'quit' to exit): ").strip()
+
+            # Step 4.1: Accept student answer, and handle if quit
+            if student_answer.lower() in ["q", "quit", "exit"]:
+                print("👋 Bye! Hope to see you again soon!")
+                session["concept_results"][concept] = "incomplete"
+
+                if return_metadata:
+                    return session, metadata_list
+                return session
+
+            # Validate answer
+            if not student_answer:
+                print("\nPlease provide an answer: ")
+                questions_asked -= 1
+                continue
+
+            # Step 4.2: Evaluate student answer
+            eval_result, eval_metadata = evaluate_answer(
+                question=current_question,
+                student_answer=student_answer,
+                context=context,
+                teaching_goal=teaching_goal,
+                return_metadata=True,
+            )
+
+            # Show feedback
+            print(f"\n🎓 Tutor feedback: {eval_result['feedback']}")
+
+            # Record this turn's data in trasnscript
+            turn_data = {
+                "concept": concept,
+                "question": current_question,
+                "answer": student_answer,
+                "evaluation": eval_result["evaluation"],
+                "feedback": eval_result["feedback"],
+            }
+            session["transcript"].append(turn_data)
+
+            # Step 4.3: Collect this turn's metadata for logging
+            if return_metadata:
+                teaching_metadata = {
+                    "turn": len(session["transcript"]),
+                    "topic": topic,
+                    "concept": concept,
+                    "pdf_name": pdf_name,
+                    "correctness": eval_result["evaluation"]["correctness"],
+                    "num_gaps": len(eval_result["evaluation"]["gaps"]),
+                    "answer_length": len(student_answer),
+                    "has_followup": bool(eval_result.get("next_question")),
+                    "model": MODEL,
+                }
+                teaching_metadata.update(eval_metadata)
+                metadata_list.append(teaching_metadata)
+
+            # Step 4.4: Check if concept is learned, if yes, break out of inner loop
+            if eval_result["evaluation"]["correctness"] in ["correct", "partial"]:
+                print("\n✔︎ Good progress on this concept!")
+                concept_mastered = True
+                session["concept_results"][concept] = "learned"
+                student_profile.update_concept_progress(topic, concept, "learned")
+                break
+
+            # Step 4.5: If not mastered, check if model provided follow-up question
+            elif questions_asked < max_questions_per_concept:
+                # Use GPT's next question if available
+                if eval_result.get("next_question"):
+                    print("\n🤔 Let me ask you this...")
+                    current_question = eval_result["next_question"]
+                else:
+                    # If no follow-up, generate new teaching question on same concept
+                    print("\n🤔 Let me try a different angle...")
+                    question_data = generate_teaching_question(
+                        topic=f"{topic}: {concept} using a simple analogy ",
+                        pdf_name=pdf_name,
+                        difficulty="beginner",
+                    )
+                    current_question = question_data["question"]
+
+        # Step 5: (Out of inner loop) - If concept not mastered after max_turns, mark weak
+        if not concept_mastered:
+            print("\n☝️ This concept needs more review. Let's revisit it later.")
+            session["concept_results"][concept] = "weak"
+            student_profile.update_concept_progress(topic, concept, "weak")
+        session["concepts_covered"].append(concept)
+
+    # Step 6: (Out of main loop)
+    if return_metadata:
+        return session, metadata_list
+    return session
