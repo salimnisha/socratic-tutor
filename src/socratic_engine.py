@@ -650,3 +650,107 @@ def teach_topic_with_concepts(
     if return_metadata:
         return session, metadata_list
     return session
+
+
+# -------------------------------------------------
+# Generate a summary for given chunks (or topic + concept)
+# -------------------------------------------------
+def generate_summary(
+    topic: str,
+    concept: str,
+    context_text: str | None = None,
+    pdf_name: str | None = None,
+    tonality: dict[str, str] | None = None,
+) -> str:
+    """Generates summary based on context text.
+
+        If context text not passed as arg, it is retrieved inside from topic chunks.
+
+    Args:
+        topic (str): Topic name
+        concept (str): Concept inside topic
+        pdf_name (str): PDF where topic came from. Defaults to None.
+        context_text (str | None, optional): text chunks joined with "\n\n\n---\n\n\n". Defaults to None.
+        tonality (dict[str, str] | None, optional): Required tone for the summary. Defaults to None.
+
+    Returns:
+        str: Summary of the topic and concept
+    """
+
+    # If context_text is not supplied, retrieve from chunks of the pdf in vector store
+    if not context_text and pdf_name:
+        context_chunks = retrieve_relevant_chunks(
+            f"{topic}: {concept}", pdf_name, top_k=4
+        )
+        context_text = "\n\n\n---\n\n\n".join(chunk for chunk, _ in context_chunks)
+
+    if not context_text:
+        return "ERROR: Please provide context or pdf_name"
+
+    # Unpack tonality or set to baseline if not given
+    if tonality is None:
+        tone = "friendly"
+        style = "analogies and story-telling"
+        audience = "smart beginner"
+    else:
+        tone = tonality.get("tone", "friendly")
+        style = tonality.get("style", "analogies and story-telling")
+        audience = tonality.get("audience", "smart beginner")
+
+    # Create message to pass to model
+    messages = [
+        {
+            "role": "system",
+            "content": f""" You are an expert professor who teaches beginner students with intuitive summaries of even complex topics.
+            Your taks is to create a clear, coherent, and descriptive summary of the text chunks.
+
+            TONE: {tone}
+            STYLE: {style}
+            AUDIENCE: {audience}
+
+            GUIDELINES:
+            - Stay true to the meaning of the text
+            - Combine all text chunks into a smooth and coherent explanation
+            - Avoid repetition and redundancies
+            - Maintain a consistent style and tone
+            - Use transitions to connect ideas naturally
+            - At the end, list out key points to learn (4-6 bullet points maximum)
+
+            IMPORTANT:
+            Keep the summary under 300-350 words (about 8-10 sentences).
+
+            """,
+        },
+        {
+            "role": "user",
+            "content": f""" Use the following text and create a summary.
+            {context_text}
+            List out key points as a bullet list at the end of the summary.
+            """,
+        },
+    ]
+
+    # Call OpenAI and parse response
+    response = client.chat.completions.create(
+        model=MODEL, messages=messages, temperature=TEACHING_TEMPERATURE
+    )
+    result = response.choices[0].message.content
+
+    # Logging
+    log = {
+        "time": datetime.now().isoformat(),
+        "topic": topic,
+        "concept": concept,
+        "tonality": {
+            "tone": tone,
+            "style": style,
+            "audience": audience,
+        },
+        "summary": result,
+    }
+    logfile = "logs/generate_summary.json"
+    with open(logfile, "a") as file:
+        json.dump(log, file, indent=2)
+        print(f"\n✅ Logged to {logfile}")
+
+    return result
